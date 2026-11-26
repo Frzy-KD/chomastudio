@@ -1,0 +1,1981 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>ChromaStudio — Digital Illustration Suite</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            studio: {
+              bg: '#121214',
+              panel: '#1c1c20',
+              elevated: '#26262c',
+              border: '#32323a',
+              accent: '#6366f1',
+              accentHover: '#4f46e5',
+              text: '#f4f4f6',
+              muted: '#9ca3af'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #121214;
+      color: #f4f4f6;
+      touch-action: none;
+    }
+
+    /* Custom subtle scrollbars for side panels */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #32323a;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #4b4b57;
+    }
+
+    /* Checkerboard transparency pattern */
+    .checkerboard-bg {
+      background-color: #ffffff;
+      background-image: 
+        linear-gradient(45deg, #e5e7eb 25%, transparent 25%), 
+        linear-gradient(-45deg, #e5e7eb 25%, transparent 25%), 
+        linear-gradient(45deg, transparent 75%, #e5e7eb 75%), 
+        linear-gradient(-45deg, transparent 75%, #e5e7eb 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+    }
+
+    /* Custom Range Sliders */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 6px;
+      border-radius: 999px;
+      background: #2c2c34;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: #6366f1;
+      border: 2px solid #ffffff;
+      margin-top: -4.5px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+      transition: transform 0.12s ease, background-color 0.12s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+      background: #818cf8;
+    }
+
+    /* Native color input reset */
+    input[type="color"] {
+      -webkit-appearance: none;
+      border: none;
+      padding: 0;
+      background: none;
+    }
+    input[type="color"]::-webkit-color-swatch-wrapper {
+      padding: 0;
+    }
+    input[type="color"]::-webkit-color-swatch {
+      border: none;
+      border-radius: 8px;
+    }
+
+    /* Tooltip Styling */
+    .tool-btn {
+      position: relative;
+    }
+    @media (min-width: 768px) {
+      .tool-btn::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        left: calc(100% + 10px);
+        top: 50%;
+        transform: translateY(-50%) translateX(-4px);
+        background: #1c1c20;
+        color: #f4f4f6;
+        border: 1px solid #32323a;
+        padding: 4px 9px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 500;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.15s ease, transform 0.15s ease;
+        z-index: 60;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.45);
+      }
+      .tool-btn:hover::after {
+        opacity: 1;
+        transform: translateY(-50%) translateX(0);
+      }
+    }
+
+    /* Canvas Wrapper shadow & crisp rendering */
+    #canvas-stage {
+      box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.08);
+      transform-origin: 0 0;
+    }
+    canvas {
+      display: block;
+      image-rendering: auto;
+    }
+  </style>
+</head>
+<body class="flex flex-col h-screen w-screen overflow-hidden font-sans text-studio-text bg-studio-bg">
+
+  <!-- TOP HEADER BAR -->
+  <header class="h-12 bg-studio-panel border-b border-studio-border px-3 flex items-center justify-between z-40 shrink-0">
+    <!-- Left: Brand & Canvas Presets -->
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md">
+          <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 19l7-7 3 3-7 7-3-3z"/>
+            <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
+            <path d="M2 2l7.586 7.586"/>
+            <circle cx="11" cy="11" r="2"/>
+          </svg>
+        </div>
+        <span class="font-semibold text-sm tracking-tight hidden sm:inline">ChromaStudio</span>
+      </div>
+
+      <div class="h-4 w-px bg-studio-border hidden sm:block"></div>
+
+      <!-- New / Resize Canvas Preset Dropdown -->
+      <div class="relative">
+        <button id="btn-new-canvas" class="px-2.5 py-1.5 rounded-lg bg-studio-elevated hover:bg-zinc-700/70 text-xs font-medium flex items-center gap-1.5 border border-studio-border transition">
+          <svg class="w-3.5 h-3.5 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+          </svg>
+          <span id="canvas-dim-label" class="font-mono text-[11px] text-zinc-300">1280 × 800</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Center: History & Canvas Actions -->
+    <div class="flex items-center gap-1 bg-studio-bg/70 p-1 rounded-xl border border-studio-border">
+      <button id="btn-undo" title="Undo (Ctrl+Z)" disabled class="p-1.5 rounded-lg hover:bg-studio-elevated disabled:opacity-35 disabled:pointer-events-none transition text-zinc-200">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
+        </svg>
+      </button>
+      <button id="btn-redo" title="Redo (Ctrl+Y)" disabled class="p-1.5 rounded-lg hover:bg-studio-elevated disabled:opacity-35 disabled:pointer-events-none transition text-zinc-200">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/>
+        </svg>
+      </button>
+      <div class="h-4 w-px bg-studio-border mx-0.5"></div>
+      <button id="btn-clear" title="Clear Canvas" class="p-1.5 rounded-lg hover:bg-red-500/20 hover:text-red-400 transition text-zinc-300">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Right: Import, Export & Mobile Panel Toggle -->
+    <div class="flex items-center gap-2">
+      <button id="btn-gallery-open" title="My Drawings" class="px-2.5 py-1.5 rounded-lg bg-studio-elevated hover:bg-zinc-700/70 border border-studio-border text-xs font-medium flex items-center gap-1.5 transition">
+        <svg class="w-3.5 h-3.5 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+        <span class="hidden md:inline">My Drawings</span>
+      </button>
+      <button id="btn-save-open" title="Save Drawing (Ctrl+S)" class="px-2.5 py-1.5 rounded-lg bg-studio-elevated hover:bg-zinc-700/70 border border-studio-border text-xs font-medium flex items-center gap-1.5 transition">
+        <svg class="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+        </svg>
+        <span class="hidden md:inline">Save</span>
+      </button>
+      <input type="file" id="file-import" accept="image/*" class="hidden" />
+      <button id="btn-import" title="Import Image onto Canvas" class="px-2.5 py-1.5 rounded-lg bg-studio-elevated hover:bg-zinc-700/70 border border-studio-border text-xs font-medium flex items-center gap-1.5 transition">
+        <svg class="w-3.5 h-3.5 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <span class="hidden md:inline">Import</span>
+      </button>
+
+      <button id="btn-export-open" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium flex items-center gap-1.5 shadow-sm transition">
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        <span>Export</span>
+      </button>
+
+      <!-- Mobile Inspector Toggle -->
+      <button id="btn-toggle-inspector" class="lg:hidden p-1.5 rounded-lg bg-studio-elevated border border-studio-border text-zinc-200" title="Properties & Colors">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN WORKSPACE AREA -->
+  <div class="flex-1 flex relative overflow-hidden">
+
+    <!-- LEFT FLOATING / DOCKED TOOL DOCK -->
+    <aside class="z-30 md:static fixed bottom-3 left-1/2 -translate-x-1/2 md:translate-x-0 md:left-auto md:bottom-auto md:w-14 bg-studio-panel/95 backdrop-blur-md border border-studio-border md:border-y-0 md:border-l-0 rounded-2xl md:rounded-none px-2 py-1.5 md:py-3 flex md:flex-col items-center gap-1 shadow-2xl md:shadow-none overflow-x-auto max-w-[95vw]">
+      
+      <!-- Brush / Pen -->
+      <button data-tool="brush" data-tooltip="Brush (B)" class="tool-btn active p-2.5 rounded-xl bg-indigo-600 text-white transition flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18.37 2.63 14 7l-1.59-1.59a2 2 0 0 0-2.82 0L8 7l9 9 1.59-1.59a2 2 0 0 0 0-2.82L17 10l4.37-4.37a2.12 2.12 0 1 0-3-3Z"/><path d="M9 8c-2 3-4 3.5-7 4l8 10c2-1 6-5 6-7"/><path d="M14.5 17.5 4.5 15"/>
+        </svg>
+      </button>
+
+      <!-- Highlighter / Marker -->
+      <button data-tool="highlighter" data-tooltip="Marker / Highlighter (M)" class="tool-btn p-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-studio-elevated transition flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/>
+        </svg>
+      </button>
+
+      <!-- Eraser -->
+      <button data-tool="eraser" data-tooltip="Eraser (E)" class="tool-btn p-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-studio-elevated transition flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/>
+        </svg>
+      </button>
+
+      <div class="w-px h-5 md:w-6 md:h-px bg-studio-border my-0.5 shrink-0"></div>
+
+      <!-- Line -->
+      <button data-tool="line" data-tooltip="Line (L)" class="tool-btn p-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-studio-elevated transition flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="5" y1="19" x2="19" y2="5"/>
+        </svg>
+      </button>
+
+      <!-- Rectangle -->
+      <button data-tool="rect" data-tooltip="Rectangle (R)" class="tool-btn p-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-studio-elevated transition flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+        </svg>
+      </button>
+
+      <!-- Circle / Ellipse -->
+      <button data-tool="ellipse" data-tooltip="Ellipse / Circle (O)" class="tool-btn p-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-studio-elevated transition flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="9"/>
+        </svg>
+      </button>
+
+      <!-- Triangle -->
+      <button data-tool="triangle" data-tooltip="Triangle (Y)" class="tool-btn p-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-studio-elevated transition flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        </svg>
+      </button>
+
+      <div class="w-px h-5 md:w-6 md:h-px bg-studio-border my-0.5 shrink-0"></div>
+
+      <!-- Flood Fill Bucket -->
+      <button data-tool="fill" data-tooltip="Fill Bucket (G)" class="tool-btn p-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-studio-elevated transition flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z"/><path d="m5 2 5 5"/><path d="M2 13h15"/><path d="M22 20a2 2 0 1 1-4 0c0-1.6 1.7-2.4 2-4 .3 1.6 2 2.4 2 4Z"/>
+        </svg>
+      </button>
+
+      <!-- Eyedropper -->
+      <button data-tool="eyedropper" data-tooltip="Eyedropper (I)" class="tool-btn p-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-studio-elevated transition flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m2 22 1-1h3l9-9"/><path d="M3 21v-3l9-9"/><path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z"/>
+        </svg>
+      </button>
+
+      <!-- Text Tool -->
+      <button data-tool="text" data-tooltip="Text Tool (T)" class="tool-btn p-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-studio-elevated transition flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/>
+        </svg>
+      </button>
+
+      <!-- Hand / Pan Tool -->
+      <button data-tool="pan" data-tooltip="Pan View (Space + Drag)" class="tool-btn p-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-studio-elevated transition flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>
+        </svg>
+      </button>
+    </aside>
+
+    <!-- CENTRAL INTERACTIVE VIEWPORT -->
+    <main id="viewport" class="flex-1 relative overflow-hidden bg-[#0c0c0e] cursor-crosshair">
+      <!-- Subtle radial studio ambient backdrop -->
+      <div class="absolute inset-0 pointer-events-none opacity-40" style="background-image: radial-gradient(#27272f 1px, transparent 1px); background-size: 24px 24px;"></div>
+
+      <!-- Transformable Artboard Container -->
+      <div id="canvas-stage" class="absolute top-0 left-0 rounded-sm overflow-hidden checkerboard-bg">
+        <!-- Base Background Color Layer -->
+        <canvas id="bg-canvas" class="absolute inset-0 pointer-events-none"></canvas>
+        <!-- Committed Artwork Layer -->
+        <canvas id="main-canvas" class="absolute inset-0"></canvas>
+        <!-- Active Stroke / Shape Preview Layer -->
+        <canvas id="preview-canvas" class="absolute inset-0 pointer-events-none"></canvas>
+        <!-- Optional Grid / Dot Overlay Layer -->
+        <canvas id="grid-canvas" class="absolute inset-0 pointer-events-none opacity-0 transition-opacity duration-200"></canvas>
+        
+        <!-- Inline Floating Text Input Overlay -->
+        <div id="text-input-wrapper" class="hidden absolute z-30">
+          <textarea id="canvas-text-input" rows="1" placeholder="Type text..." class="bg-studio-panel/90 backdrop-blur-md text-white border-2 border-indigo-500 rounded-md px-2 py-1 outline-none resize-none shadow-xl min-w-[140px] leading-tight"></textarea>
+          <div class="flex items-center gap-1 mt-1">
+            <button id="btn-text-commit" class="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-medium rounded shadow">Place (Enter)</button>
+            <button id="btn-text-cancel" class="px-2 py-0.5 bg-studio-elevated hover:bg-zinc-700 text-zinc-300 text-[11px] rounded shadow">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Visual Brush Ring Cursor Preview -->
+      <div id="brush-cursor" class="pointer-events-none fixed rounded-full border border-white/80 mix-blend-difference z-50 hidden -translate-x-1/2 -translate-y-1/2 transition-[width,height] duration-75"></div>
+
+      <!-- Floating Bottom-Left Status & Zoom Bar -->
+      <div class="hidden md:flex items-center gap-2 absolute bottom-4 left-4 bg-studio-panel/90 backdrop-blur-md border border-studio-border px-3 py-1.5 rounded-xl text-xs shadow-lg z-20">
+        <button id="btn-zoom-out" class="p-1 hover:bg-studio-elevated rounded text-zinc-300" title="Zoom Out (-)">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <span id="zoom-readout" class="font-mono text-[11px] w-11 text-center text-zinc-200">100%</span>
+        <button id="btn-zoom-in" class="p-1 hover:bg-studio-elevated rounded text-zinc-300" title="Zoom In (+)">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <button id="btn-zoom-fit" class="px-2 py-0.5 text-[11px] bg-studio-elevated hover:bg-zinc-700 rounded text-zinc-300 transition" title="Fit to Screen (Ctrl+0)">Fit</button>
+        <div class="h-3.5 w-px bg-studio-border mx-1"></div>
+        <span id="cursor-coords" class="font-mono text-[11px] text-zinc-400 w-24">0, 0 px</span>
+      </div>
+    </main>
+
+    <!-- RIGHT INSPECTOR PANEL (Properties & Colors) -->
+    <aside id="inspector-panel" class="fixed lg:static right-0 top-12 bottom-0 w-72 bg-studio-panel border-l border-studio-border z-30 transform translate-x-full lg:translate-x-0 transition-transform duration-200 flex flex-col overflow-y-auto">
+      
+      <!-- Section 1: Color Studio -->
+      <div class="p-4 border-b border-studio-border">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Color</h2>
+          <span id="active-tool-badge" class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 capitalize">Brush</span>
+        </div>
+
+        <!-- Primary Color Preview + Native Picker + Hex Input -->
+        <div class="flex items-center gap-2.5 mb-3">
+          <div class="relative w-11 h-11 rounded-xl overflow-hidden border border-studio-border shadow-inner shrink-0">
+            <input type="color" id="color-picker-native" value="#6366f1" class="w-14 h-14 -m-1.5 cursor-pointer" title="Open System Color Wheel" />
+          </div>
+          <div class="flex-1">
+            <label class="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Hex Value</label>
+            <div class="flex items-center bg-studio-bg border border-studio-border rounded-lg px-2.5 py-1.5 focus-within:border-indigo-500 transition">
+              <span class="text-zinc-500 font-mono text-xs mr-1">#</span>
+              <input type="text" id="hex-input" value="6366F1" maxlength="6" class="bg-transparent font-mono text-xs text-white uppercase w-full outline-none" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Curated Swatches -->
+        <div class="mb-3">
+          <div class="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Studio Swatches</div>
+          <div id="swatch-palette" class="grid grid-cols-8 gap-1.5"></div>
+        </div>
+
+        <!-- Recent Colors History -->
+        <div>
+          <div class="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Recent</div>
+          <div id="recent-colors" class="grid grid-cols-8 gap-1.5"></div>
+        </div>
+      </div>
+
+      <!-- Section 2: Tool Dynamics & Sliders -->
+      <div class="p-4 border-b border-studio-border space-y-4">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Tool Properties</h2>
+
+        <!-- Brush / Stroke Size -->
+        <div>
+          <div class="flex justify-between items-center text-xs mb-1.5">
+            <span class="text-zinc-300">Size</span>
+            <span id="size-value" class="font-mono text-indigo-300 bg-studio-bg px-1.5 py-0.5 rounded text-[11px]">12 px</span>
+          </div>
+          <input type="range" id="slider-size" min="1" max="100" value="12" class="w-full" />
+        </div>
+
+        <!-- Opacity -->
+        <div>
+          <div class="flex justify-between items-center text-xs mb-1.5">
+            <span class="text-zinc-300">Opacity</span>
+            <span id="opacity-value" class="font-mono text-indigo-300 bg-studio-bg px-1.5 py-0.5 rounded text-[11px]">100%</span>
+          </div>
+          <input type="range" id="slider-opacity" min="1" max="100" value="100" class="w-full" />
+        </div>
+
+        <!-- Dynamic Contextual Controls (Shape Mode / Fill Tolerance / Text Font) -->
+        <div id="contextual-options" class="pt-1 space-y-3">
+          
+          <!-- Pressure Sensitivity Toggle (Brush/Eraser) -->
+          <div id="opt-pressure" class="flex items-center justify-between">
+            <span class="text-xs text-zinc-300">Stylus Pressure</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="toggle-pressure" checked class="sr-only peer">
+              <div class="w-9 h-5 bg-studio-bg border border-studio-border peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-400 peer-checked:after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+
+          <!-- Shape Fill vs Stroke -->
+          <div id="opt-shape" class="hidden space-y-2">
+            <span class="block text-xs text-zinc-300">Shape Style</span>
+            <div class="grid grid-cols-2 gap-1.5 bg-studio-bg p-1 rounded-lg border border-studio-border">
+              <button data-shape-mode="stroke" class="shape-mode-btn active py-1 text-xs font-medium rounded-md bg-studio-elevated text-white shadow-sm">Outline</button>
+              <button data-shape-mode="fill" class="shape-mode-btn py-1 text-xs font-medium rounded-md text-zinc-400 hover:text-white">Solid Fill</button>
+            </div>
+          </div>
+
+          <!-- Flood Fill Tolerance -->
+          <div id="opt-tolerance" class="hidden">
+            <div class="flex justify-between items-center text-xs mb-1.5">
+              <span class="text-zinc-300">Fill Tolerance</span>
+              <span id="tolerance-value" class="font-mono text-indigo-300 bg-studio-bg px-1.5 py-0.5 rounded text-[11px]">32</span>
+            </div>
+            <input type="range" id="slider-tolerance" min="0" max="150" value="32" class="w-full" />
+          </div>
+
+          <!-- Text Tool Font Options -->
+          <div id="opt-text" class="hidden space-y-2">
+            <span class="block text-xs text-zinc-300">Font Family</span>
+            <select id="select-font" class="w-full bg-studio-bg border border-studio-border rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-indigo-500">
+              <option value="Inter, sans-serif">Inter (Sans-Serif)</option>
+              <option value="Georgia, serif">Georgia (Serif)</option>
+              <option value="'JetBrains Mono', monospace">JetBrains Mono</option>
+              <option value="Impact, sans-serif">Impact Display</option>
+              <option value="'Comic Sans MS', cursive">Comic Casual</option>
+            </select>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Section 3: Canvas Backdrop & Guides -->
+      <div class="p-4 space-y-3">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Canvas & Guides</h2>
+
+        <div>
+          <span class="block text-xs text-zinc-300 mb-2">Background Paper</span>
+          <div class="grid grid-cols-3 gap-2">
+            <button data-bg="white" class="bg-preset-btn active flex flex-col items-center gap-1 p-2 rounded-xl bg-studio-elevated border border-indigo-500 text-[11px] font-medium">
+              <span class="w-6 h-6 rounded-full bg-white border border-zinc-300 shadow-sm"></span>
+              <span>White</span>
+            </button>
+            <button data-bg="dark" class="bg-preset-btn flex flex-col items-center gap-1 p-2 rounded-xl bg-studio-bg border border-studio-border hover:border-zinc-600 text-[11px] font-medium text-zinc-400">
+              <span class="w-6 h-6 rounded-full bg-[#18181b] border border-zinc-700 shadow-sm"></span>
+              <span>Dark</span>
+            </button>
+            <button data-bg="transparent" class="bg-preset-btn flex flex-col items-center gap-1 p-2 rounded-xl bg-studio-bg border border-studio-border hover:border-zinc-600 text-[11px] font-medium text-zinc-400">
+              <span class="w-6 h-6 rounded-full checkerboard-bg border border-zinc-600 shadow-sm"></span>
+              <span>Alpha</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Grid Overlay Selector -->
+        <div class="pt-1">
+          <span class="block text-xs text-zinc-300 mb-1.5">Guide Overlay</span>
+          <div class="grid grid-cols-3 gap-1 bg-studio-bg p-1 rounded-lg border border-studio-border">
+            <button data-grid="none" class="grid-btn active py-1 text-[11px] font-medium rounded-md bg-studio-elevated text-white">None</button>
+            <button data-grid="grid" class="grid-btn py-1 text-[11px] font-medium rounded-md text-zinc-400 hover:text-white">Grid</button>
+            <button data-grid="dots" class="grid-btn py-1 text-[11px] font-medium rounded-md text-zinc-400 hover:text-white">Dots</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Keyboard Shortcuts Quick Legend -->
+      <div class="mt-auto p-4 border-t border-studio-border bg-studio-bg/40 text-[11px] text-zinc-500 space-y-1">
+        <div class="flex justify-between"><span>Brush Size</span><span class="font-mono text-zinc-400">[ / ]</span></div>
+        <div class="flex justify-between"><span>Pan Canvas</span><span class="font-mono text-zinc-400">Space + Drag</span></div>
+        <div class="flex justify-between"><span>Zoom</span><span class="font-mono text-zinc-400">Scroll Wheel</span></div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- MODAL: NEW / RESIZE CANVAS -->
+  <div id="modal-new" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-studio-panel border border-studio-border rounded-2xl w-full max-w-sm p-5 shadow-2xl">
+      <h3 class="text-base font-semibold mb-1">New Canvas</h3>
+      <p class="text-xs text-zinc-400 mb-4">Choose a preset or enter custom artboard dimensions.</p>
+      
+      <div class="grid grid-cols-2 gap-2 mb-4">
+        <button data-preset="1280x800" class="preset-size-btn p-2.5 rounded-xl bg-studio-bg hover:bg-studio-elevated border border-studio-border text-left transition">
+          <div class="text-xs font-medium text-white">HD Landscape</div>
+          <div class="text-[11px] font-mono text-zinc-400">1280 × 800</div>
+        </button>
+        <button data-preset="1080x1080" class="preset-size-btn p-2.5 rounded-xl bg-studio-bg hover:bg-studio-elevated border border-studio-border text-left transition">
+          <div class="text-xs font-medium text-white">Square Social</div>
+          <div class="text-[11px] font-mono text-zinc-400">1080 × 1080</div>
+        </button>
+        <button data-preset="1920x1080" class="preset-size-btn p-2.5 rounded-xl bg-studio-bg hover:bg-studio-elevated border border-studio-border text-left transition">
+          <div class="text-xs font-medium text-white">Full HD 1080p</div>
+          <div class="text-[11px] font-mono text-zinc-400">1920 × 1080</div>
+        </button>
+        <button data-preset="800x1100" class="preset-size-btn p-2.5 rounded-xl bg-studio-bg hover:bg-studio-elevated border border-studio-border text-left transition">
+          <div class="text-xs font-medium text-white">Portrait Sketch</div>
+          <div class="text-[11px] font-mono text-zinc-400">800 × 1100</div>
+        </button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 mb-5">
+        <div>
+          <label class="block text-[11px] text-zinc-400 mb-1">Width (px)</label>
+          <input type="number" id="input-width" value="1280" min="100" max="4096" class="w-full bg-studio-bg border border-studio-border rounded-lg px-3 py-1.5 text-xs font-mono text-white outline-none focus:border-indigo-500" />
+        </div>
+        <div>
+          <label class="block text-[11px] text-zinc-400 mb-1">Height (px)</label>
+          <input type="number" id="input-height" value="800" min="100" max="4096" class="w-full bg-studio-bg border border-studio-border rounded-lg px-3 py-1.5 text-xs font-mono text-white outline-none focus:border-indigo-500" />
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2">
+        <button id="btn-new-cancel" class="px-3.5 py-1.5 rounded-lg bg-studio-elevated hover:bg-zinc-700 text-xs font-medium text-zinc-300">Cancel</button>
+        <button id="btn-new-confirm" class="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-medium text-white">Create Canvas</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CONFIRM CLEAR -->
+  <div id="modal-clear" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-studio-panel border border-studio-border rounded-2xl w-full max-w-xs p-5 shadow-2xl">
+      <h3 class="text-base font-semibold mb-1">Clear Artwork?</h3>
+      <p class="text-xs text-zinc-400 mb-5">This will wipe the current drawing layer. You can still undo this action with Ctrl+Z.</p>
+      <div class="flex justify-end gap-2">
+        <button id="btn-clear-cancel" class="px-3.5 py-1.5 rounded-lg bg-studio-elevated hover:bg-zinc-700 text-xs font-medium text-zinc-300">Cancel</button>
+        <button id="btn-clear-confirm" class="px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-xs font-medium text-white">Clear Layer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: EXPORT ARTWORK -->
+  <div id="modal-export" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-studio-panel border border-studio-border rounded-2xl w-full max-w-sm p-5 shadow-2xl">
+      <h3 class="text-base font-semibold mb-1">Export Illustration</h3>
+      <p class="text-xs text-zinc-400 mb-4">Download your high-resolution artwork.</p>
+
+      <div class="space-y-3 mb-5">
+        <div>
+          <label class="block text-[11px] text-zinc-400 mb-1">File Name</label>
+          <input type="text" id="export-filename" value="chromastudio-artwork" class="w-full bg-studio-bg border border-studio-border rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500" />
+        </div>
+        <div>
+          <label class="block text-[11px] text-zinc-400 mb-1">Format</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button data-format="png" class="export-fmt-btn active p-2.5 rounded-xl bg-studio-elevated border border-indigo-500 text-left">
+              <div class="text-xs font-semibold text-white">PNG</div>
+              <div class="text-[10px] text-zinc-400">Lossless + Alpha support</div>
+            </button>
+            <button data-format="jpeg" class="export-fmt-btn p-2.5 rounded-xl bg-studio-bg border border-studio-border text-left">
+              <div class="text-xs font-semibold text-white">JPEG</div>
+              <div class="text-[10px] text-zinc-400">Compressed flat image</div>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2">
+        <button id="btn-export-cancel" class="px-3.5 py-1.5 rounded-lg bg-studio-elevated hover:bg-zinc-700 text-xs font-medium text-zinc-300">Cancel</button>
+        <button id="btn-export-download" class="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-medium text-white flex items-center gap-1.5">
+          <span>Download File</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: SAVE DRAWING -->
+  <div id="modal-save" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-studio-panel border border-studio-border rounded-2xl w-full max-w-sm p-5 shadow-2xl">
+      <h3 class="text-base font-semibold mb-1">Save Drawing</h3>
+      <p id="save-subtitle" class="text-xs text-zinc-400 mb-4">Store this artwork in your gallery so you can keep working on it later.</p>
+      <div class="mb-5">
+        <label class="block text-[11px] text-zinc-400 mb-1">Title</label>
+        <input type="text" id="save-title" maxlength="120" value="Untitled" class="w-full bg-studio-bg border border-studio-border rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500" />
+      </div>
+      <div class="flex justify-end gap-2">
+        <button id="btn-save-cancel" class="px-3.5 py-1.5 rounded-lg bg-studio-elevated hover:bg-zinc-700 text-xs font-medium text-zinc-300">Cancel</button>
+        <button id="btn-save-as-new" class="hidden px-3.5 py-1.5 rounded-lg bg-studio-elevated hover:bg-zinc-700 text-xs font-medium text-zinc-200">Save as Copy</button>
+        <button id="btn-save-confirm" class="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-medium text-white disabled:opacity-50">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: MY DRAWINGS GALLERY -->
+  <div id="modal-gallery" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-studio-panel border border-studio-border rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl">
+      <div class="flex items-center justify-between p-5 pb-3">
+        <div>
+          <h3 class="text-base font-semibold">My Drawings</h3>
+          <p class="text-xs text-zinc-400">Saved in this browser's gallery. Click a drawing to open it.</p>
+        </div>
+        <button id="btn-gallery-close" class="p-1.5 rounded-lg hover:bg-studio-elevated text-zinc-300" title="Close">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="px-5 pb-5 overflow-y-auto">
+        <div id="gallery-status" class="text-xs text-zinc-400 py-10 text-center">Loading…</div>
+        <div id="gallery-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-3"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 bg-studio-elevated border border-studio-border text-white px-3.5 py-1.5 rounded-full text-xs font-medium shadow-xl opacity-0 pointer-events-none transition-opacity duration-200 z-50">
+    Notification
+  </div>
+
+  <script>
+    /**
+     * ChromaStudio — Digital Illustration Suite
+     * Modular Vanilla JS Architecture using HTML5 Canvas & Pointer Events API
+     */
+    (() => {
+      // ==========================================
+      // 1. APPLICATION STATE & CONFIGURATION
+      // ==========================================
+      const STATE = {
+        width: 1280,
+        height: 800,
+        tool: 'brush', // brush, highlighter, eraser, line, rect, ellipse, triangle, fill, eyedropper, text, pan
+        color: '#6366f1',
+        size: 12,
+        opacity: 1.0,
+        pressureEnabled: true,
+        shapeMode: 'stroke', // stroke | fill
+        fillTolerance: 32,
+        fontFamily: 'Inter, sans-serif',
+        bgMode: 'white', // white | dark | transparent
+        gridMode: 'none', // none | grid | dots
+        exportFormat: 'png',
+
+        // Saved drawing currently open (null = unsaved)
+        currentDrawing: null,
+
+        // Viewport Transform
+        zoom: 1,
+        panX: 0,
+        panY: 0,
+        isSpacePressed: false,
+        isPanning: false,
+        panStart: { x: 0, y: 0 },
+
+        // Drawing Interaction
+        isDrawing: false,
+        points: [],
+        startPoint: { x: 0, y: 0 },
+        lastPointerPos: { x: 0, y: 0 },
+
+        // Undo / Redo History
+        history: [],
+        historyIndex: -1,
+        maxHistory: 35,
+
+        // Color History
+        swatches: [
+          '#ffffff', '#d4d4d8', '#71717a', '#18181b', '#ef4444', '#f97316', '#f59e0b', '#eab308',
+          '#84cc16', '#22c55e', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#a855f7', '#ec4899'
+        ],
+        recentColors: ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#18181b', '#ffffff', '#3b82f6', '#ef4444']
+      };
+
+      // ==========================================
+      // 2. DOM ELEMENTS & CANVAS CONTEXTS
+      // ==========================================
+      const viewport = document.getElementById('viewport');
+      const stage = document.getElementById('canvas-stage');
+      const bgCanvas = document.getElementById('bg-canvas');
+      const mainCanvas = document.getElementById('main-canvas');
+      const previewCanvas = document.getElementById('preview-canvas');
+      const gridCanvas = document.getElementById('grid-canvas');
+
+      const bgCtx = bgCanvas.getContext('2d');
+      const mainCtx = mainCanvas.getContext('2d', { willReadFrequently: true });
+      const previewCtx = previewCanvas.getContext('2d');
+      const gridCtx = gridCanvas.getContext('2d');
+
+      const brushCursor = document.getElementById('brush-cursor');
+      const textWrapper = document.getElementById('text-input-wrapper');
+      const textInput = document.getElementById('canvas-text-input');
+
+      // ==========================================
+      // 3. INITIALIZATION & CANVAS SETUP
+      // ==========================================
+      function init() {
+        setupSwatches();
+        renderRecentColors();
+        resizeArtboard(STATE.width, STATE.height, false);
+        fitCanvasToScreen();
+        saveHistorySnapshot();
+        bindEvents();
+        updateContextualUI();
+      }
+
+      function resizeArtboard(width, height, preserveContent = false) {
+        let tempCanvas = null;
+        if (preserveContent) {
+          tempCanvas = document.createElement('canvas');
+          tempCanvas.width = mainCanvas.width;
+          tempCanvas.height = mainCanvas.height;
+          tempCanvas.getContext('2d').drawImage(mainCanvas, 0, 0);
+        }
+
+        STATE.width = width;
+        STATE.height = height;
+
+        stage.style.width = `${width}px`;
+        stage.style.height = `${height}px`;
+
+        [bgCanvas, mainCanvas, previewCanvas, gridCanvas].forEach(c => {
+          c.width = width;
+          c.height = height;
+        });
+
+        document.getElementById('canvas-dim-label').textContent = `${width} × ${height}`;
+
+        renderBackgroundLayer();
+        renderGridLayer();
+
+        if (preserveContent && tempCanvas) {
+          mainCtx.drawImage(tempCanvas, 0, 0);
+        }
+      }
+
+      function renderBackgroundLayer() {
+        bgCtx.clearRect(0, 0, STATE.width, STATE.height);
+        if (STATE.bgMode === 'white') {
+          bgCtx.fillStyle = '#ffffff';
+          bgCtx.fillRect(0, 0, STATE.width, STATE.height);
+        } else if (STATE.bgMode === 'dark') {
+          bgCtx.fillStyle = '#18181b';
+          bgCtx.fillRect(0, 0, STATE.width, STATE.height);
+        }
+        // 'transparent' leaves bgCanvas clear, exposing CSS checkerboard
+      }
+
+      function renderGridLayer() {
+        gridCtx.clearRect(0, 0, STATE.width, STATE.height);
+        if (STATE.gridMode === 'none') {
+          gridCanvas.classList.add('opacity-0');
+          return;
+        }
+        gridCanvas.classList.remove('opacity-0');
+        const step = 32;
+        const isDarkBg = STATE.bgMode === 'dark';
+        gridCtx.fillStyle = isDarkBg ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)';
+        gridCtx.strokeStyle = isDarkBg ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.09)';
+        gridCtx.lineWidth = 1;
+
+        if (STATE.gridMode === 'grid') {
+          gridCtx.beginPath();
+          for (let x = step; x < STATE.width; x += step) {
+            gridCtx.moveTo(x + 0.5, 0);
+            gridCtx.lineTo(x + 0.5, STATE.height);
+          }
+          for (let y = step; y < STATE.height; y += step) {
+            gridCtx.moveTo(0, y + 0.5);
+            gridCtx.lineTo(STATE.width, y + 0.5);
+          }
+          gridCtx.stroke();
+        } else if (STATE.gridMode === 'dots') {
+          for (let x = step; x < STATE.width; x += step) {
+            for (let y = step; y < STATE.height; y += step) {
+              gridCtx.beginPath();
+              gridCtx.arc(x, y, 1.3, 0, Math.PI * 2);
+              gridCtx.fill();
+            }
+          }
+        }
+      }
+
+      // ==========================================
+      // 4. VIEWPORT ZOOM & PAN ENGINE
+      // ==========================================
+      function updateStageTransform() {
+        stage.style.transform = `translate(${STATE.panX}px, ${STATE.panY}px) scale(${STATE.zoom})`;
+        document.getElementById('zoom-readout').textContent = `${Math.round(STATE.zoom * 100)}%`;
+        updateBrushCursorSize();
+      }
+
+      function fitCanvasToScreen() {
+        const rect = viewport.getBoundingClientRect();
+        const padding = window.innerWidth < 768 ? 32 : 80;
+        const availW = Math.max(100, rect.width - padding);
+        const availH = Math.max(100, rect.height - padding);
+        const scale = Math.min(availW / STATE.width, availH / STATE.height, 1);
+
+        STATE.zoom = Math.max(0.1, Number(scale.toFixed(2)));
+        STATE.panX = Math.round((rect.width - STATE.width * STATE.zoom) / 2);
+        STATE.panY = Math.round((rect.height - STATE.height * STATE.zoom) / 2);
+        updateStageTransform();
+      }
+
+      function setZoomAtPoint(newZoom, clientX, clientY) {
+        const clampedZoom = Math.min(8, Math.max(0.1, newZoom));
+        const rect = viewport.getBoundingClientRect();
+        const mouseX = clientX - rect.left;
+        const mouseY = clientY - rect.top;
+
+        // World coordinates before zoom
+        const worldX = (mouseX - STATE.panX) / STATE.zoom;
+        const worldY = (mouseY - STATE.panY) / STATE.zoom;
+
+        STATE.zoom = clampedZoom;
+        STATE.panX = mouseX - worldX * STATE.zoom;
+        STATE.panY = mouseY - worldY * STATE.zoom;
+        updateStageTransform();
+      }
+
+      function screenToCanvasCoords(clientX, clientY) {
+        const rect = viewport.getBoundingClientRect();
+        const x = (clientX - rect.left - STATE.panX) / STATE.zoom;
+        const y = (clientY - rect.top - STATE.panY) / STATE.zoom;
+        return { x, y };
+      }
+
+      // ==========================================
+      // 5. UNDO / REDO HISTORY STACK
+      // ==========================================
+      function saveHistorySnapshot() {
+        // Trim forward redo states if branching
+        if (STATE.historyIndex < STATE.history.length - 1) {
+          STATE.history = STATE.history.slice(0, STATE.historyIndex + 1);
+        }
+        const snapshot = mainCtx.getImageData(0, 0, STATE.width, STATE.height);
+        STATE.history.push(snapshot);
+        if (STATE.history.length > STATE.maxHistory) {
+          STATE.history.shift();
+        } else {
+          STATE.historyIndex++;
+        }
+        updateHistoryButtons();
+      }
+
+      function undo() {
+        if (STATE.historyIndex > 0) {
+          STATE.historyIndex--;
+          mainCtx.putImageData(STATE.history[STATE.historyIndex], 0, 0);
+          updateHistoryButtons();
+          showToast('Undo');
+        }
+      }
+
+      function redo() {
+        if (STATE.historyIndex < STATE.history.length - 1) {
+          STATE.historyIndex++;
+          mainCtx.putImageData(STATE.history[STATE.historyIndex], 0, 0);
+          updateHistoryButtons();
+          showToast('Redo');
+        }
+      }
+
+      function updateHistoryButtons() {
+        document.getElementById('btn-undo').disabled = STATE.historyIndex <= 0;
+        document.getElementById('btn-redo').disabled = STATE.historyIndex >= STATE.history.length - 1;
+      }
+
+      // ==========================================
+      // 6. DRAWING ALGORITHMS & TOOLS
+      // ==========================================
+      function configureStrokeContext(ctx, tool, pressure = 0.5) {
+        const effectivePressure = (STATE.pressureEnabled && pressure > 0 && pressure !== 0.5)
+          ? Math.max(0.15, Math.min(1.6, pressure * 1.5))
+          : 1;
+
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        if (tool === 'eraser') {
+          ctx.globalCompositeOperation = 'destination-out';
+          ctx.globalAlpha = STATE.opacity;
+          ctx.strokeStyle = 'rgba(0,0,0,1)';
+          ctx.lineWidth = STATE.size * effectivePressure;
+        } else if (tool === 'highlighter') {
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.globalAlpha = Math.min(0.45, STATE.opacity * 0.45);
+          ctx.strokeStyle = STATE.color;
+          ctx.lineCap = 'square';
+          ctx.lineWidth = Math.max(8, STATE.size * 1.4);
+        } else {
+          // Standard Brush & Shapes
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.globalAlpha = STATE.opacity;
+          ctx.strokeStyle = STATE.color;
+          ctx.fillStyle = STATE.color;
+          ctx.lineWidth = STATE.size * effectivePressure;
+        }
+      }
+
+      /**
+       * Smooth Quadratic Bezier Curve Interpolation for Freehand Strokes
+       */
+      function renderSmoothStroke(ctx, points, tool) {
+        ctx.clearRect(0, 0, STATE.width, STATE.height);
+        if (points.length === 0) return;
+
+        if (points.length === 1) {
+          const pt = points[0];
+          configureStrokeContext(ctx, tool, pt.pressure);
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, ctx.lineWidth / 2, 0, Math.PI * 2);
+          ctx.fillStyle = tool === 'eraser' ? 'rgba(0,0,0,1)' : STATE.color;
+          ctx.fill();
+          return;
+        }
+
+        for (let i = 1; i < points.length; i++) {
+          const p0 = points[i - 1];
+          const p1 = points[i];
+          const midX = (p0.x + p1.x) / 2;
+          const midY = (p0.y + p1.y) / 2;
+
+          configureStrokeContext(ctx, tool, p1.pressure);
+          ctx.beginPath();
+          if (i === 1) {
+            ctx.moveTo(p0.x, p0.y);
+            ctx.lineTo(midX, midY);
+          } else {
+            const prevMidX = (points[i - 2].x + p0.x) / 2;
+            const prevMidY = (points[i - 2].y + p0.y) / 2;
+            ctx.moveTo(prevMidX, prevMidY);
+            ctx.quadraticCurveTo(p0.x, p0.y, midX, midY);
+          }
+          ctx.stroke();
+        }
+      }
+
+      /**
+       * Geometric Shape Renderer (Line, Rectangle, Ellipse, Triangle)
+       */
+      function renderShape(ctx, tool, start, end, shiftKey = false) {
+        ctx.clearRect(0, 0, STATE.width, STATE.height);
+        configureStrokeContext(ctx, tool, 0.5);
+
+        let dx = end.x - start.x;
+        let dy = end.y - start.y;
+
+        // Constrain proportions when Shift is held
+        if (shiftKey && tool !== 'line') {
+          const side = Math.max(Math.abs(dx), Math.abs(dy));
+          dx = dx >= 0 ? side : -side;
+          dy = dy >= 0 ? side : -side;
+        }
+
+        const targetX = start.x + dx;
+        const targetY = start.y + dy;
+
+        ctx.beginPath();
+        if (tool === 'line') {
+          ctx.moveTo(start.x, start.y);
+          ctx.lineTo(targetX, targetY);
+          ctx.stroke();
+          return;
+        } else if (tool === 'rect') {
+          ctx.rect(start.x, start.y, dx, dy);
+        } else if (tool === 'ellipse') {
+          const centerX = start.x + dx / 2;
+          const centerY = start.y + dy / 2;
+          const radiusX = Math.abs(dx / 2);
+          const radiusY = Math.abs(dy / 2);
+          ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
+        } else if (tool === 'triangle') {
+          const topX = start.x + dx / 2;
+          const topY = start.y;
+          ctx.moveTo(topX, topY);
+          ctx.lineTo(targetX, targetY);
+          ctx.lineTo(start.x, targetY);
+          ctx.closePath();
+        }
+
+        if (STATE.shapeMode === 'fill') {
+          ctx.fill();
+        } else {
+          ctx.stroke();
+        }
+      }
+
+      /**
+       * Fast Scanline Flood Fill Algorithm with Color Tolerance
+       */
+      function floodFill(startX, startY, fillHex, tolerance) {
+        const x0 = Math.floor(startX);
+        const y0 = Math.floor(startY);
+        if (x0 < 0 || x0 >= STATE.width || y0 < 0 || y0 >= STATE.height) return;
+
+        const imgData = mainCtx.getImageData(0, 0, STATE.width, STATE.height);
+        const data = imgData.data;
+        const width = STATE.width;
+        const height = STATE.height;
+
+        const fillRgb = hexToRgb(fillHex);
+        const fillAlpha = Math.round(STATE.opacity * 255);
+
+        const startIdx = (y0 * width + x0) * 4;
+        const targetR = data[startIdx];
+        const targetG = data[startIdx + 1];
+        const targetB = data[startIdx + 2];
+        const targetA = data[startIdx + 3];
+
+        // Prevent infinite loop if target color matches fill color closely
+        if (
+          Math.abs(targetR - fillRgb.r) <= 2 &&
+          Math.abs(targetG - fillRgb.g) <= 2 &&
+          Math.abs(targetB - fillRgb.b) <= 2 &&
+          Math.abs(targetA - fillAlpha) <= 2
+        ) {
+          return;
+        }
+
+        const visited = new Uint8Array(width * height);
+        const stack = [x0, y0];
+
+        function matchesTarget(pixelPos) {
+          const idx = pixelPos * 4;
+          const dr = data[idx] - targetR;
+          const dg = data[idx + 1] - targetG;
+          const db = data[idx + 2] - targetB;
+          const da = data[idx + 3] - targetA;
+          return (dr * dr + dg * dg + db * db + da * da) <= (tolerance * tolerance * 4);
+        }
+
+        function setPixel(pixelPos) {
+          const idx = pixelPos * 4;
+          // Alpha blend new fill over existing pixel
+          const srcA = fillAlpha / 255;
+          const dstA = data[idx + 3] / 255;
+          const outA = srcA + dstA * (1 - srcA);
+          if (outA > 0) {
+            data[idx] = Math.round((fillRgb.r * srcA + data[idx] * dstA * (1 - srcA)) / outA);
+            data[idx + 1] = Math.round((fillRgb.g * srcA + data[idx + 1] * dstA * (1 - srcA)) / outA);
+            data[idx + 2] = Math.round((fillRgb.b * srcA + data[idx + 2] * dstA * (1 - srcA)) / outA);
+            data[idx + 3] = Math.round(outA * 255);
+          }
+        }
+
+        while (stack.length > 0) {
+          const y = stack.pop();
+          let x = stack.pop();
+
+          let pixelPos = y * width + x;
+          while (x >= 0 && !visited[pixelPos] && matchesTarget(pixelPos)) {
+            x--;
+            pixelPos--;
+          }
+          x++;
+          pixelPos++;
+
+          let spanAbove = false;
+          let spanBelow = false;
+
+          while (x < width && !visited[pixelPos] && matchesTarget(pixelPos)) {
+            visited[pixelPos] = 1;
+            setPixel(pixelPos);
+
+            if (y > 0) {
+              const abovePos = pixelPos - width;
+              if (!spanAbove && !visited[abovePos] && matchesTarget(abovePos)) {
+                stack.push(x, y - 1);
+                spanAbove = true;
+              } else if (spanAbove && (visited[abovePos] || !matchesTarget(abovePos))) {
+                spanAbove = false;
+              }
+            }
+
+            if (y < height - 1) {
+              const belowPos = pixelPos + width;
+              if (!spanBelow && !visited[belowPos] && matchesTarget(belowPos)) {
+                stack.push(x, y + 1);
+                spanBelow = true;
+              } else if (spanBelow && (visited[belowPos] || !matchesTarget(belowPos))) {
+                spanBelow = false;
+              }
+            }
+
+            x++;
+            pixelPos++;
+          }
+        }
+
+        mainCtx.putImageData(imgData, 0, 0);
+        saveHistorySnapshot();
+      }
+
+      /**
+       * Eyedropper Color Sampler (Samples composite of background + artwork)
+       */
+      function sampleCanvasColor(x, y) {
+        const px = Math.floor(x);
+        const py = Math.floor(y);
+        if (px < 0 || px >= STATE.width || py < 0 || py >= STATE.height) return;
+
+        // Composite single pixel from bgCanvas and mainCanvas
+        const sampleCanvas = document.createElement('canvas');
+        sampleCanvas.width = 1;
+        sampleCanvas.height = 1;
+        const sCtx = sampleCanvas.getContext('2d');
+        sCtx.drawImage(bgCanvas, px, py, 1, 1, 0, 0, 1, 1);
+        sCtx.drawImage(mainCanvas, px, py, 1, 1, 0, 0, 1, 1);
+
+        const [r, g, b, a] = sCtx.getImageData(0, 0, 1, 1).data;
+        if (a === 0) {
+          showToast('Sampled transparent pixel');
+          return;
+        }
+        const hex = rgbToHex(r, g, b);
+        setActiveColor(hex, true);
+        showToast(`Sampled ${hex.toUpperCase()}`);
+      }
+
+      /**
+       * Text Tool Placement
+       */
+      let pendingTextCoords = { x: 0, y: 0 };
+      function openTextInputAt(x, y) {
+        pendingTextCoords = { x, y };
+        const fontSize = Math.max(14, STATE.size * 2);
+        textWrapper.style.left = `${Math.min(STATE.width - 160, Math.max(8, x))}px`;
+        textWrapper.style.top = `${Math.min(STATE.height - 60, Math.max(8, y))}px`;
+        textInput.style.fontFamily = STATE.fontFamily;
+        textInput.style.fontSize = `${fontSize}px`;
+        textInput.style.color = STATE.color;
+        textInput.value = '';
+        textWrapper.classList.remove('hidden');
+        setTimeout(() => textInput.focus(), 10);
+      }
+
+      function commitTextToCanvas() {
+        const text = textInput.value.trim();
+        textWrapper.classList.add('hidden');
+        if (!text) return;
+
+        const fontSize = Math.max(14, STATE.size * 2);
+        mainCtx.save();
+        mainCtx.globalCompositeOperation = 'source-over';
+        mainCtx.globalAlpha = STATE.opacity;
+        mainCtx.fillStyle = STATE.color;
+        mainCtx.font = `600 ${fontSize}px ${STATE.fontFamily}`;
+        mainCtx.textBaseline = 'top';
+
+        const lines = text.split('\n');
+        lines.forEach((line, idx) => {
+          mainCtx.fillText(line, pendingTextCoords.x, pendingTextCoords.y + idx * (fontSize * 1.2));
+        });
+        mainCtx.restore();
+
+        addRecentColor(STATE.color);
+        saveHistorySnapshot();
+      }
+
+      // ==========================================
+      // 7. POINTER EVENTS & INTERACTION HANDLERS
+      // ==========================================
+      function handlePointerDown(e) {
+        // Ignore clicks inside floating text box
+        if (e.target.closest('#text-input-wrapper')) return;
+
+        // Middle mouse button or Spacebar + Left Click or Pan Tool => Pan View
+        if (e.button === 1 || STATE.isSpacePressed || STATE.tool === 'pan') {
+          STATE.isPanning = true;
+          STATE.panStart = { x: e.clientX - STATE.panX, y: e.clientY - STATE.panY };
+          viewport.style.cursor = 'grabbing';
+          return;
+        }
+
+        if (e.button !== 0 && e.pointerType === 'mouse') return;
+
+        // If text input is open, commit it first
+        if (!textWrapper.classList.contains('hidden')) {
+          commitTextToCanvas();
+          return;
+        }
+
+        const coords = screenToCanvasCoords(e.clientX, e.clientY);
+
+        if (STATE.tool === 'eyedropper') {
+          sampleCanvasColor(coords.x, coords.y);
+          return;
+        }
+
+        if (STATE.tool === 'fill') {
+          floodFill(coords.x, coords.y, STATE.color, STATE.fillTolerance);
+          addRecentColor(STATE.color);
+          return;
+        }
+
+        if (STATE.tool === 'text') {
+          openTextInputAt(coords.x, coords.y);
+          return;
+        }
+
+        // Start Drawing or Shape
+        viewport.setPointerCapture(e.pointerId);
+        STATE.isDrawing = true;
+        STATE.startPoint = coords;
+        const pressure = e.pressure || 0.5;
+        STATE.points = [{ x: coords.x, y: coords.y, pressure }];
+
+        if (['brush', 'highlighter', 'eraser'].includes(STATE.tool)) {
+          if (STATE.tool === 'eraser') {
+            // Erase directly on mainCtx so user sees live erasure
+            mainCtx.save();
+            configureStrokeContext(mainCtx, 'eraser', pressure);
+            mainCtx.beginPath();
+            mainCtx.arc(coords.x, coords.y, mainCtx.lineWidth / 2, 0, Math.PI * 2);
+            mainCtx.fill();
+            mainCtx.restore();
+          } else {
+            renderSmoothStroke(previewCtx, STATE.points, STATE.tool);
+          }
+        }
+      }
+
+      function handlePointerMove(e) {
+        const coords = screenToCanvasCoords(e.clientX, e.clientY);
+        document.getElementById('cursor-coords').textContent = `${Math.round(coords.x)}, ${Math.round(coords.y)} px`;
+        updateBrushCursorPosition(e);
+
+        if (STATE.isPanning) {
+          STATE.panX = e.clientX - STATE.panStart.x;
+          STATE.panY = e.clientY - STATE.panStart.y;
+          updateStageTransform();
+          return;
+        }
+
+        if (!STATE.isDrawing) return;
+
+        const pressure = e.pressure || 0.5;
+
+        if (['brush', 'highlighter'].includes(STATE.tool)) {
+          STATE.points.push({ x: coords.x, y: coords.y, pressure });
+          renderSmoothStroke(previewCtx, STATE.points, STATE.tool);
+        } else if (STATE.tool === 'eraser') {
+          const prev = STATE.points[STATE.points.length - 1];
+          mainCtx.save();
+          configureStrokeContext(mainCtx, 'eraser', pressure);
+          mainCtx.beginPath();
+          mainCtx.moveTo(prev.x, prev.y);
+          mainCtx.lineTo(coords.x, coords.y);
+          mainCtx.stroke();
+          mainCtx.restore();
+          STATE.points.push({ x: coords.x, y: coords.y, pressure });
+        } else if (['line', 'rect', 'ellipse', 'triangle'].includes(STATE.tool)) {
+          renderShape(previewCtx, STATE.tool, STATE.startPoint, coords, e.shiftKey);
+        }
+      }
+
+      function handlePointerUp(e) {
+        if (STATE.isPanning) {
+          STATE.isPanning = false;
+          viewport.style.cursor = (STATE.isSpacePressed || STATE.tool === 'pan') ? 'grab' : 'crosshair';
+          return;
+        }
+
+        if (!STATE.isDrawing) return;
+        STATE.isDrawing = false;
+        if (viewport.hasPointerCapture(e.pointerId)) {
+          viewport.releasePointerCapture(e.pointerId);
+        }
+
+        if (['brush', 'highlighter', 'line', 'rect', 'ellipse', 'triangle'].includes(STATE.tool)) {
+          // Commit previewCanvas onto mainCanvas
+          mainCtx.save();
+          mainCtx.globalCompositeOperation = 'source-over';
+          mainCtx.globalAlpha = 1;
+          mainCtx.drawImage(previewCanvas, 0, 0);
+          mainCtx.restore();
+          previewCtx.clearRect(0, 0, STATE.width, STATE.height);
+          addRecentColor(STATE.color);
+        }
+
+        saveHistorySnapshot();
+        STATE.points = [];
+      }
+
+      // ==========================================
+      // 8. VISUAL BRUSH CURSOR RING
+      // ==========================================
+      function updateBrushCursorPosition(e) {
+        const showRing = ['brush', 'highlighter', 'eraser'].includes(STATE.tool) && !STATE.isSpacePressed && e.pointerType === 'mouse';
+        if (!showRing) {
+          brushCursor.classList.add('hidden');
+          return;
+        }
+        brushCursor.classList.remove('hidden');
+        brushCursor.style.left = `${e.clientX}px`;
+        brushCursor.style.top = `${e.clientY}px`;
+        updateBrushCursorSize();
+      }
+
+      function updateBrushCursorSize() {
+        const mult = STATE.tool === 'highlighter' ? 1.4 : 1;
+        const diameter = Math.max(4, STATE.size * mult * STATE.zoom);
+        brushCursor.style.width = `${diameter}px`;
+        brushCursor.style.height = `${diameter}px`;
+      }
+
+      // ==========================================
+      // 9. COLOR & UI SYNCHRONIZATION
+      // ==========================================
+      function setupSwatches() {
+        const container = document.getElementById('swatch-palette');
+        container.innerHTML = '';
+        STATE.swatches.forEach(hex => {
+          const btn = document.createElement('button');
+          btn.className = 'w-6 h-6 rounded-md border border-white/15 hover:scale-110 transition shadow-sm';
+          btn.style.backgroundColor = hex;
+          btn.title = hex.toUpperCase();
+          btn.addEventListener('click', () => setActiveColor(hex, false));
+          container.appendChild(btn);
+        });
+      }
+
+      function renderRecentColors() {
+        const container = document.getElementById('recent-colors');
+        container.innerHTML = '';
+        STATE.recentColors.slice(0, 8).forEach(hex => {
+          const btn = document.createElement('button');
+          btn.className = 'w-6 h-6 rounded-md border border-white/15 hover:scale-110 transition shadow-sm';
+          btn.style.backgroundColor = hex;
+          btn.title = hex.toUpperCase();
+          btn.addEventListener('click', () => setActiveColor(hex, false));
+          container.appendChild(btn);
+        });
+      }
+
+      function addRecentColor(hex) {
+        const clean = hex.toLowerCase();
+        STATE.recentColors = [clean, ...STATE.recentColors.filter(c => c.toLowerCase() !== clean)].slice(0, 8);
+        renderRecentColors();
+      }
+
+      function setActiveColor(hex, addToRecent = false) {
+        if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return;
+        STATE.color = hex;
+        document.getElementById('color-picker-native').value = hex;
+        document.getElementById('hex-input').value = hex.replace('#', '').toUpperCase();
+        if (addToRecent) addRecentColor(hex);
+      }
+
+      function selectTool(toolName) {
+        if (!textWrapper.classList.contains('hidden')) commitTextToCanvas();
+        STATE.tool = toolName;
+
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+          const isMatch = btn.dataset.tool === toolName;
+          btn.classList.toggle('active', isMatch);
+          btn.classList.toggle('bg-indigo-600', isMatch);
+          btn.classList.toggle('text-white', isMatch);
+          btn.classList.toggle('text-zinc-400', !isMatch);
+        });
+
+        document.getElementById('active-tool-badge').textContent = toolName;
+        viewport.style.cursor = toolName === 'pan' ? 'grab' : (toolName === 'text' ? 'text' : 'crosshair');
+        updateContextualUI();
+        updateBrushCursorSize();
+      }
+
+      function updateContextualUI() {
+        const isFreehand = ['brush', 'eraser'].includes(STATE.tool);
+        const isShape = ['line', 'rect', 'ellipse', 'triangle'].includes(STATE.tool);
+        const isFill = STATE.tool === 'fill';
+        const isText = STATE.tool === 'text';
+
+        document.getElementById('opt-pressure').classList.toggle('hidden', !isFreehand);
+        document.getElementById('opt-shape').classList.toggle('hidden', !isShape);
+        document.getElementById('opt-tolerance').classList.toggle('hidden', !isFill);
+        document.getElementById('opt-text').classList.toggle('hidden', !isText);
+      }
+
+      // ==========================================
+      // 10. EXPORT & IMPORT WORKFLOWS
+      // ==========================================
+      function exportArtwork() {
+        const filename = (document.getElementById('export-filename').value.trim() || 'chromastudio-artwork');
+        const fmt = STATE.exportFormat;
+        const mime = fmt === 'jpeg' ? 'image/jpeg' : 'image/png';
+
+        const outCanvas = document.createElement('canvas');
+        outCanvas.width = STATE.width;
+        outCanvas.height = STATE.height;
+        const outCtx = outCanvas.getContext('2d');
+
+        // For JPEG or non-transparent background modes, composite background first
+        if (fmt === 'jpeg' && STATE.bgMode === 'transparent') {
+          outCtx.fillStyle = '#ffffff';
+          outCtx.fillRect(0, 0, STATE.width, STATE.height);
+        } else {
+          outCtx.drawImage(bgCanvas, 0, 0);
+        }
+        outCtx.drawImage(mainCanvas, 0, 0);
+
+        const link = document.createElement('a');
+        link.download = `${filename}.${fmt}`;
+        link.href = outCanvas.toDataURL(mime, 0.95);
+        link.click();
+
+        closeModal('modal-export');
+        showToast(`Exported ${filename}.${fmt}`);
+      }
+
+      function handleImageImport(file) {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            // Fit image centered within canvas if larger than artboard
+            const scale = Math.min(1, STATE.width / img.width, STATE.height / img.height);
+            const drawW = img.width * scale;
+            const drawH = img.height * scale;
+            const drawX = (STATE.width - drawW) / 2;
+            const drawY = (STATE.height - drawH) / 2;
+
+            mainCtx.save();
+            mainCtx.globalCompositeOperation = 'source-over';
+            mainCtx.globalAlpha = 1;
+            mainCtx.drawImage(img, drawX, drawY, drawW, drawH);
+            mainCtx.restore();
+
+            saveHistorySnapshot();
+            showToast('Image imported onto canvas');
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+
+      // ==========================================
+      // 10b. SAVED DRAWINGS (stored in Netlify Database + Blobs)
+      // ==========================================
+      function getOwnerId() {
+        let id = localStorage.getItem('chromastudio-owner-id');
+        if (!id) {
+          id = crypto.randomUUID();
+          localStorage.setItem('chromastudio-owner-id', id);
+        }
+        return id;
+      }
+
+      async function api(path, options = {}) {
+        const res = await fetch(path, {
+          ...options,
+          headers: { 'X-Owner-Id': getOwnerId(), ...(options.headers || {}) }
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || `Request failed (${res.status})`);
+        }
+        return res.status === 204 ? null : res.json();
+      }
+
+      function setCurrentDrawing(drawing) {
+        STATE.currentDrawing = drawing;
+        document.title = drawing ? `${drawing.title} — ChromaStudio` : 'ChromaStudio — Digital Illustration Suite';
+      }
+
+      function openSaveModal() {
+        const current = STATE.currentDrawing;
+        document.getElementById('save-title').value = current ? current.title : 'Untitled';
+        document.getElementById('save-subtitle').textContent = current
+          ? 'Update the saved copy of this drawing, or save it as a new copy.'
+          : 'Store this artwork in your gallery so you can keep working on it later.';
+        document.getElementById('btn-save-confirm').textContent = current ? 'Update' : 'Save';
+        document.getElementById('btn-save-as-new').classList.toggle('hidden', !current);
+        openModal('modal-save');
+        const input = document.getElementById('save-title');
+        input.focus();
+        input.select();
+      }
+
+      let isSaving = false;
+      async function saveDrawing(asNew) {
+        if (isSaving) return;
+        isSaving = true;
+        const confirmBtn = document.getElementById('btn-save-confirm');
+        confirmBtn.disabled = true;
+        try {
+          const title = document.getElementById('save-title').value.trim() || 'Untitled';
+          // Save the drawing layer only (keeps transparency), background mode is stored separately
+          const blob = await new Promise((resolve) => mainCanvas.toBlob(resolve, 'image/png'));
+          const params = new URLSearchParams({
+            title, width: STATE.width, height: STATE.height, bgMode: STATE.bgMode
+          });
+          const existing = !asNew && STATE.currentDrawing;
+          const path = existing ? `/api/drawings/${existing.id}` : '/api/drawings';
+          const saved = await api(`${path}?${params}`, {
+            method: existing ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'image/png' },
+            body: blob
+          });
+          setCurrentDrawing(saved);
+          closeModal('modal-save');
+          showToast(existing ? `Updated "${saved.title}"` : `Saved "${saved.title}"`);
+        } catch (err) {
+          showToast(`Save failed: ${err.message}`);
+        } finally {
+          isSaving = false;
+          confirmBtn.disabled = false;
+        }
+      }
+
+      async function openGallery() {
+        openModal('modal-gallery');
+        const status = document.getElementById('gallery-status');
+        const grid = document.getElementById('gallery-grid');
+        status.textContent = 'Loading…';
+        status.classList.remove('hidden');
+        grid.innerHTML = '';
+        try {
+          const items = await api('/api/drawings');
+          renderGallery(items);
+        } catch (err) {
+          status.textContent = `Could not load drawings: ${err.message}`;
+        }
+      }
+
+      function renderGallery(items) {
+        const status = document.getElementById('gallery-status');
+        const grid = document.getElementById('gallery-grid');
+        grid.innerHTML = '';
+        if (!items.length) {
+          status.textContent = 'No saved drawings yet. Use Save to add your first one.';
+          status.classList.remove('hidden');
+          return;
+        }
+        status.classList.add('hidden');
+        const bgColors = { white: '#ffffff', dark: '#18181b' };
+        items.forEach((d) => {
+          const card = document.createElement('div');
+          card.className = 'group rounded-xl border border-studio-border bg-studio-bg overflow-hidden hover:border-indigo-500 transition';
+
+          const thumb = document.createElement('button');
+          thumb.className = 'block w-full aspect-[4/3] bg-center bg-no-repeat bg-contain';
+          thumb.style.backgroundColor = bgColors[d.bgMode] || '#3f3f46';
+          thumb.style.backgroundImage = `url("${d.imageUrl}")`;
+          thumb.title = `Open "${d.title}"`;
+          thumb.addEventListener('click', () => loadDrawing(d));
+
+          const info = document.createElement('div');
+          info.className = 'flex items-center justify-between gap-2 px-2.5 py-2';
+          const text = document.createElement('div');
+          text.className = 'min-w-0';
+          const name = document.createElement('div');
+          name.className = 'text-xs font-medium text-white truncate';
+          name.textContent = d.title;
+          const meta = document.createElement('div');
+          meta.className = 'text-[10px] text-zinc-500';
+          meta.textContent = `${d.width}×${d.height} · ${new Date(d.updatedAt).toLocaleDateString()}`;
+          text.append(name, meta);
+
+          const del = document.createElement('button');
+          del.className = 'p-1 rounded-md text-zinc-500 hover:text-red-400 hover:bg-red-500/10 shrink-0';
+          del.title = 'Delete';
+          del.innerHTML = '<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+          del.addEventListener('click', async () => {
+            if (!confirm(`Delete "${d.title}"? This cannot be undone.`)) return;
+            try {
+              await api(`/api/drawings/${d.id}`, { method: 'DELETE' });
+              if (STATE.currentDrawing && STATE.currentDrawing.id === d.id) setCurrentDrawing(null);
+              card.remove();
+              if (!grid.children.length) renderGallery([]);
+              showToast(`Deleted "${d.title}"`);
+            } catch (err) {
+              showToast(`Delete failed: ${err.message}`);
+            }
+          });
+
+          info.append(text, del);
+          card.append(thumb, info);
+          grid.appendChild(card);
+        });
+      }
+
+      function loadDrawing(d) {
+        const img = new Image();
+        img.onload = () => {
+          STATE.bgMode = d.bgMode;
+          const presetBtn = document.querySelector(`.bg-preset-btn[data-bg="${d.bgMode}"]`);
+          if (presetBtn) presetBtn.click();
+          STATE.history = [];
+          STATE.historyIndex = -1;
+          resizeArtboard(d.width, d.height, false);
+          mainCtx.clearRect(0, 0, d.width, d.height);
+          mainCtx.drawImage(img, 0, 0);
+          fitCanvasToScreen();
+          saveHistorySnapshot();
+          setCurrentDrawing(d);
+          closeModal('modal-gallery');
+          showToast(`Opened "${d.title}"`);
+        };
+        img.onerror = () => showToast('Could not load that drawing');
+        img.src = d.imageUrl;
+      }
+
+      // ==========================================
+      // 11. EVENT LISTENERS & KEYBOARD SHORTCUTS
+      // ==========================================
+      function bindEvents() {
+        // Pointer Events on Viewport
+        viewport.addEventListener('pointerdown', handlePointerDown);
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', handlePointerUp);
+        viewport.addEventListener('pointerleave', () => brushCursor.classList.add('hidden'));
+
+        // Mouse Wheel Zoom
+        viewport.addEventListener('wheel', (e) => {
+          e.preventDefault();
+          const factor = e.deltaY < 0 ? 1.12 : 0.88;
+          setZoomAtPoint(STATE.zoom * factor, e.clientX, e.clientY);
+        }, { passive: false });
+
+        // Tool Selection Buttons
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+          btn.addEventListener('click', () => selectTool(btn.dataset.tool));
+        });
+
+        // Color Controls
+        document.getElementById('color-picker-native').addEventListener('input', (e) => {
+          setActiveColor(e.target.value, false);
+        });
+        document.getElementById('color-picker-native').addEventListener('change', (e) => {
+          addRecentColor(e.target.value);
+        });
+        document.getElementById('hex-input').addEventListener('input', (e) => {
+          const val = e.target.value.replace(/[^0-9A-Fa-f]/g, '');
+          e.target.value = val;
+          if (val.length === 6) setActiveColor(`#${val}`, true);
+        });
+
+        // Sliders
+        document.getElementById('slider-size').addEventListener('input', (e) => {
+          STATE.size = Number(e.target.value);
+          document.getElementById('size-value').textContent = `${STATE.size} px`;
+          updateBrushCursorSize();
+        });
+
+        document.getElementById('slider-opacity').addEventListener('input', (e) => {
+          const pct = Number(e.target.value);
+          STATE.opacity = pct / 100;
+          document.getElementById('opacity-value').textContent = `${pct}%`;
+        });
+
+        document.getElementById('slider-tolerance').addEventListener('input', (e) => {
+          STATE.fillTolerance = Number(e.target.value);
+          document.getElementById('tolerance-value').textContent = STATE.fillTolerance;
+        });
+
+        document.getElementById('toggle-pressure').addEventListener('change', (e) => {
+          STATE.pressureEnabled = e.target.checked;
+        });
+
+        document.getElementById('select-font').addEventListener('change', (e) => {
+          STATE.fontFamily = e.target.value;
+          textInput.style.fontFamily = STATE.fontFamily;
+        });
+
+        // Shape Mode Buttons
+        document.querySelectorAll('.shape-mode-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            STATE.shapeMode = btn.dataset.shapeMode;
+            document.querySelectorAll('.shape-mode-btn').forEach(b => {
+              const active = b === btn;
+              b.classList.toggle('bg-studio-elevated', active);
+              b.classList.toggle('text-white', active);
+              b.classList.toggle('text-zinc-400', !active);
+            });
+          });
+        });
+
+        // Background Preset Buttons
+        document.querySelectorAll('.bg-preset-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            STATE.bgMode = btn.dataset.bg;
+            document.querySelectorAll('.bg-preset-btn').forEach(b => {
+              const active = b === btn;
+              b.classList.toggle('border-indigo-500', active);
+              b.classList.toggle('bg-studio-elevated', active);
+              b.classList.toggle('text-white', active);
+              b.classList.toggle('border-studio-border', !active);
+              b.classList.toggle('bg-studio-bg', !active);
+              b.classList.toggle('text-zinc-400', !active);
+            });
+            renderBackgroundLayer();
+            renderGridLayer();
+          });
+        });
+
+        // Grid Overlay Buttons
+        document.querySelectorAll('.grid-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            STATE.gridMode = btn.dataset.grid;
+            document.querySelectorAll('.grid-btn').forEach(b => {
+              const active = b === btn;
+              b.classList.toggle('bg-studio-elevated', active);
+              b.classList.toggle('text-white', active);
+              b.classList.toggle('text-zinc-400', !active);
+            });
+            renderGridLayer();
+          });
+        });
+
+        // History & Zoom Buttons
+        document.getElementById('btn-undo').addEventListener('click', undo);
+        document.getElementById('btn-redo').addEventListener('click', redo);
+        document.getElementById('btn-zoom-in').addEventListener('click', () => {
+          const rect = viewport.getBoundingClientRect();
+          setZoomAtPoint(STATE.zoom * 1.2, rect.left + rect.width / 2, rect.top + rect.height / 2);
+        });
+        document.getElementById('btn-zoom-out').addEventListener('click', () => {
+          const rect = viewport.getBoundingClientRect();
+          setZoomAtPoint(STATE.zoom * 0.8, rect.left + rect.width / 2, rect.top + rect.height / 2);
+        });
+        document.getElementById('btn-zoom-fit').addEventListener('click', fitCanvasToScreen);
+
+        // Text Input Controls
+        document.getElementById('btn-text-commit').addEventListener('click', commitTextToCanvas);
+        document.getElementById('btn-text-cancel').addEventListener('click', () => textWrapper.classList.add('hidden'));
+        textInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            commitTextToCanvas();
+          } else if (e.key === 'Escape') {
+            textWrapper.classList.add('hidden');
+          }
+        });
+
+        // Mobile Inspector Drawer Toggle
+        document.getElementById('btn-toggle-inspector').addEventListener('click', () => {
+          document.getElementById('inspector-panel').classList.toggle('translate-x-full');
+        });
+
+        // Import Image
+        const fileInput = document.getElementById('file-import');
+        document.getElementById('btn-import').addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+          handleImageImport(e.target.files[0]);
+          fileInput.value = '';
+        });
+
+        // Modals: New Canvas
+        document.getElementById('btn-new-canvas').addEventListener('click', () => openModal('modal-new'));
+        document.getElementById('btn-new-cancel').addEventListener('click', () => closeModal('modal-new'));
+        document.querySelectorAll('.preset-size-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const [w, h] = btn.dataset.preset.split('x').map(Number);
+            document.getElementById('input-width').value = w;
+            document.getElementById('input-height').value = h;
+          });
+        });
+        document.getElementById('btn-new-confirm').addEventListener('click', () => {
+          const w = Math.min(4096, Math.max(100, Number(document.getElementById('input-width').value) || 1280));
+          const h = Math.min(4096, Math.max(100, Number(document.getElementById('input-height').value) || 800));
+          STATE.history = [];
+          STATE.historyIndex = -1;
+          resizeArtboard(w, h, false);
+          fitCanvasToScreen();
+          saveHistorySnapshot();
+          setCurrentDrawing(null);
+          closeModal('modal-new');
+          showToast(`Created ${w}×${h} canvas`);
+        });
+
+        // Modals: Clear Canvas
+        document.getElementById('btn-clear').addEventListener('click', () => openModal('modal-clear'));
+        document.getElementById('btn-clear-cancel').addEventListener('click', () => closeModal('modal-clear'));
+        document.getElementById('btn-clear-confirm').addEventListener('click', () => {
+          mainCtx.clearRect(0, 0, STATE.width, STATE.height);
+          saveHistorySnapshot();
+          closeModal('modal-clear');
+          showToast('Canvas cleared');
+        });
+
+        // Modals: Export
+        document.getElementById('btn-export-open').addEventListener('click', () => openModal('modal-export'));
+        document.getElementById('btn-export-cancel').addEventListener('click', () => closeModal('modal-export'));
+        document.querySelectorAll('.export-fmt-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            STATE.exportFormat = btn.dataset.format;
+            document.querySelectorAll('.export-fmt-btn').forEach(b => {
+              const active = b === btn;
+              b.classList.toggle('border-indigo-500', active);
+              b.classList.toggle('bg-studio-elevated', active);
+              b.classList.toggle('border-studio-border', !active);
+              b.classList.toggle('bg-studio-bg', !active);
+            });
+          });
+        });
+        document.getElementById('btn-export-download').addEventListener('click', exportArtwork);
+
+        // Saved drawings
+        document.getElementById('btn-save-open').addEventListener('click', openSaveModal);
+        document.getElementById('btn-save-cancel').addEventListener('click', () => closeModal('modal-save'));
+        document.getElementById('btn-save-confirm').addEventListener('click', () => saveDrawing(false));
+        document.getElementById('btn-save-as-new').addEventListener('click', () => saveDrawing(true));
+        document.getElementById('save-title').addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') saveDrawing(false);
+        });
+        document.getElementById('btn-gallery-open').addEventListener('click', openGallery);
+        document.getElementById('btn-gallery-close').addEventListener('click', () => closeModal('modal-gallery'));
+
+        // Global Keyboard Shortcuts
+        window.addEventListener('keydown', (e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+            e.preventDefault();
+            openSaveModal();
+            return;
+          }
+          if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+
+          if (e.code === 'Space' && !STATE.isSpacePressed) {
+            e.preventDefault();
+            STATE.isSpacePressed = true;
+            viewport.style.cursor = 'grab';
+            brushCursor.classList.add('hidden');
+            return;
+          }
+
+          // Undo / Redo
+          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+            e.preventDefault();
+            e.shiftKey ? redo() : undo();
+            return;
+          }
+          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+            e.preventDefault();
+            redo();
+            return;
+          }
+          if ((e.ctrlKey || e.metaKey) && e.key === '0') {
+            e.preventDefault();
+            fitCanvasToScreen();
+            return;
+          }
+
+          // Tool Shortcuts
+          const keyMap = {
+            b: 'brush',
+            m: 'highlighter',
+            e: 'eraser',
+            l: 'line',
+            r: 'rect',
+            o: 'ellipse',
+            y: 'triangle',
+            g: 'fill',
+            i: 'eyedropper',
+            t: 'text',
+            h: 'pan'
+          };
+          const lower = e.key.toLowerCase();
+          if (keyMap[lower]) {
+            selectTool(keyMap[lower]);
+          } else if (e.key === '[') {
+            const newSize = Math.max(1, STATE.size - 3);
+            STATE.size = newSize;
+            document.getElementById('slider-size').value = newSize;
+            document.getElementById('size-value').textContent = `${newSize} px`;
+            updateBrushCursorSize();
+          } else if (e.key === ']') {
+            const newSize = Math.min(100, STATE.size + 3);
+            STATE.size = newSize;
+            document.getElementById('slider-size').value = newSize;
+            document.getElementById('size-value').textContent = `${newSize} px`;
+            updateBrushCursorSize();
+          }
+        });
+
+        window.addEventListener('keyup', (e) => {
+          if (e.code === 'Space') {
+            STATE.isSpacePressed = false;
+            viewport.style.cursor = STATE.tool === 'pan' ? 'grab' : 'crosshair';
+          }
+        });
+
+        window.addEventListener('resize', () => {
+          if (window.innerWidth >= 1024) {
+            document.getElementById('inspector-panel').classList.remove('translate-x-full');
+          }
+        });
+      }
+
+      // ==========================================
+      // 12. HELPER UTILITIES
+      // ==========================================
+      function openModal(id) {
+        const el = document.getElementById(id);
+        el.classList.remove('hidden');
+        el.classList.add('flex');
+      }
+
+      function closeModal(id) {
+        const el = document.getElementById(id);
+        el.classList.add('hidden');
+        el.classList.remove('flex');
+      }
+
+      let toastTimer = null;
+      function showToast(msg) {
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.classList.remove('opacity-0');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.add('opacity-0'), 1800);
+      }
+
+      function hexToRgb(hex) {
+        const clean = hex.replace('#', '');
+        const bigint = parseInt(clean, 16);
+        return {
+          r: (bigint >> 16) & 255,
+          g: (bigint >> 8) & 255,
+          b: bigint & 255
+        };
+      }
+
+      function rgbToHex(r, g, b) {
+        return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+      }
+
+      // Boot application
+      window.addEventListener('DOMContentLoaded', init);
+    })();
+  </script>
+</body>
+</html>
